@@ -13,8 +13,12 @@ import geopy
 from geopy.geocoders import Nominatim
 import folium
 from streamlit_folium import st_folium
+from streamlit_extras.stylable_container import stylable_container
+import random
+from config import *
 
-dataset = 'litke'
+start = {'skob': 11, 'litke': 7}[dataset]
+vlen = {'skob': 3, 'litke': 1}[dataset]
 
 line_dist0 = 2
 
@@ -174,8 +178,10 @@ def main():
     
     if 'filenames' not in st.session_state:
         filenames = os.listdir('labels')
-        filenames = [fn[:-len('.txt')] for fn in filenames if fn.endswith('.txt')]
-        filenames.sort(key=lambda x: 1000*int(x[4:5]) + (int(x[7:]) if x[7:].isdigit() else int(x[7:-2])) + 0.5*('об' in x))
+        filenames = [fn[:-len('.txt')] for fn in filenames if fn.endswith('.txt')]        
+        
+        filenames.sort(key=lambda x: 1000*int(x[start-2-vlen:start-2]) + int(''.join(c for c in x[start:] if c.isdigit())) + 0.25*('a' in x)+\
+                       0.25*('об' in x))
         
         markup = []
         for fn in filenames:
@@ -260,7 +266,7 @@ def main():
         st.session_state['force'] = False
         st.rerun()
     
-    st.markdown("## Навигация по дневникам Ф.П. Литке")
+    st.markdown("## Навигация по дневникам " + ("А.В. Сухово-Кобылина" if dataset=="skob" else "Ф.П. Литке"))
     st.session_state['page_idx'] = page_idx
     col1,col2 = st.columns([0.45,0.55])
     with col1:
@@ -284,6 +290,31 @@ def main():
                     st.button(str(i+1), key=f'{i}_{page_idx}', disabled=True)
                 for j,ment,col in zip(list(range(len(ments))),ments,cols[1:]):
                     with col:
+                        colors = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf']
+                        color = colors[ment[1][0] % len(colors)]
+                        color = 'rgb(' + (''.join( str( (int(color[i:i+2], 16)+255)//2)+',' for i in [1,3,5]))[:-1] + ')'
+                        
+                        mark = f'button-after-{i}-{j}'
+                        st.markdown(
+                            """
+                            <style>
+                            .element-container:has(style){
+                                display: none;
+                            }
+                            #button-after {
+                                display: none;
+                            }
+                            .element-container:has(#""" + mark + """) {
+                                display: none;
+                            }
+                            .element-container:has(#""" + mark + """) + div button {
+                                background-color: """ + color + """;
+                                }
+                            </style>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(f'<span id="{mark}"></span>', unsafe_allow_html=True)
                         if st.button(ment[0], key=f'btn_{i}_{j}'):
                             st.session_state['mention'] = ment[1]
                             st.session_state['force'] = False
@@ -323,8 +354,8 @@ def main():
                             text += '**' + date1[:-5] + ' – ' + date2[:-5] + date1[-5:] + '**  \n'
                         else:
                             text += '**' + date1 + ' – ' + date2 + '**  \n'
-                    text += '['+ filenames[p1][7:] + '/' + str(l1+1) + '] ' + markup[p1]['lines'][l1] + '  \n'
-                    text += '['+ filenames[p2][7:] + '/' + str(l2+1) + '] ' + markup[p2]['lines'][l2] + '  \n'
+                    text += '['+ filenames[p1][start-2-vlen:] + '/' + str(l1+1) + '] ' + markup[p1]['lines'][l1] + '  \n'
+                    text += '['+ filenames[p2][start-2-vlen:] + '/' + str(l2+1) + '] ' + markup[p2]['lines'][l2] + '  \n'
                 st.markdown(text.replace('#', '<...>').replace('.','\.'))
 
                 line_idxs = st.session_state['line_idxs'][tag] - 1
@@ -370,7 +401,7 @@ def main():
         
     with col2:
         
-        tab1,tab2 = st.tabs(['Изображение','Карта'])
+        tab1,tab2,tab3 = st.tabs(['Изображение','Карта','Показатели'])
         
         with tab1:
             _,col21,col22,col23,_ = st.columns([0.01,0.24,0.4,0.24,0.11])
@@ -393,7 +424,7 @@ def main():
             st.pyplot(fig, use_container_width=False)
             
         with tab2:
-            folium_map = folium.Map()
+            folium_map = folium.Map(attributionControl=0)
             
             for loc in locations:
                 found = False
@@ -419,12 +450,31 @@ def main():
                     lat = 0.45*xa + 0.55*xb
                     ang = np.arctan2(xb-xa, yb-ya) * 180/np.pi - 90
                     
-                    text = '<font size="3"><b>[' + filenames[pg_idx][7:] + '/' + str(ln_idx+1) + '] ' + markup[pg_idx]['dates'][ln_idx] + \
+                    text = '<font size="3"><b>[' + filenames[pg_idx][start-2-vlen:] + '/' + str(ln_idx+1) + '] ' + markup[pg_idx]['dates'][ln_idx] + \
                            '</b><br>' + markup[pg_idx]['lines'][ln_idx] + '</font>'
                     popup = folium.Popup(text, parse_html=False, max_width=300)
                     folium.RegularPolygonMarker(location=(lon,lat), color=color, fill_color=color, number_of_sides=3, radius=10, weight=1, \
                                                 fill_opacity=1, popup=popup, rotation=ang).add_to(folium_map)
-            st_folium(folium_map)
+            st_folium(folium_map, use_container_width=False)
+            
+        with tab3:
+            indicator = st.selectbox('Выберите показатель:', options=entities['Показатель'] if 'Показатель' in entities else None)
+            if indicator:
+                data = entities['Показатель'][indicator]['Упоминания']
+                xt = [d['Номер строки'] for d in data]
+                yt = [(lambda x: x if isinstance(x,float) or isinstance(x,int) else None)(d['Значение']) for d in data]
+                
+                text = ''
+                for x in xt:
+                    pg_idx, ln_idx = format_linenum(x)
+                    text += '[' + str(x) + '] ' + markup[pg_idx]['lines'][ln_idx] + '  \n'
+                xt,yt = zip(*((x,y) for x,y in zip(xt,yt) if y))
+                
+                fig,ax = plt.subplots(figsize=(10,6))
+                plt.plot(xt, yt, 'C0-o')
+                plt.grid(True)
+                st.pyplot(fig, use_container_width=False)
+                st.markdown(text.replace('#', '<...>').replace('.','\.'))    
     
 if __name__ == "__main__":
     try:
