@@ -13,7 +13,6 @@ import geopy
 from geopy.geocoders import Nominatim
 import folium
 from streamlit_folium import st_folium
-from streamlit_extras.stylable_container import stylable_container
 import random
 from config import *
 
