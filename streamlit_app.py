@@ -321,7 +321,7 @@ def main():
                             
         with tab2:
             text = ''.join('[' + str(i+1) + '] ' + l + '  \n' for i,l in enumerate(markup[page_idx]['lines']))
-            st.markdown(text.replace('#', '<...>').replace('.','\.'))
+            st.text(text.replace('#', '<...>'))
             
         with tab3:
             tag = f'{ent_name} ({ent_type})'
