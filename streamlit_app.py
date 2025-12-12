@@ -67,17 +67,28 @@ def update_entities(data):
     st.session_state['loc_seq'] = loc_seq
 
 def typeOnChange():
-    st.session_state['mention'] = [list(st.session_state['entities'].keys()).index(st.session_state['boxType']), 0, 0]
+    try:
+        idx = list(st.session_state['entities'].keys()).index(st.session_state['boxType'])
+    except:
+        idx = 0
+    st.session_state['mention'] = [idx, 0, 0]
     st.session_state['force'] = False
 
 def nameOnChange():
     ent_type = list(st.session_state['entities'].keys())[st.session_state['mention'][0]]
-    st.session_state['mention'] = [st.session_state['mention'][0], \
-                                   list(st.session_state['entities'][ent_type].keys()).index(st.session_state['boxName']), 0]
+    try:
+        idx = list(st.session_state['entities'][ent_type].keys()).index(st.session_state['boxName'])
+    except:
+        idx = 0
+    st.session_state['mention'] = [st.session_state['mention'][0], idx, 0]
     st.session_state['force'] = False
     
 def caseOnChange():
-    st.session_state['mention'] = st.session_state['mention'][:2] + [st.session_state['values'].index(st.session_state['boxCase'])]
+    try:
+        idx = st.session_state['values'].index(st.session_state['boxCase'])
+    except:
+        idx = 0
+    st.session_state['mention'] = st.session_state['mention'][:2] + [idx]
     st.session_state['force'] = False
     
 def prevOnClick():
@@ -229,9 +240,10 @@ def main():
     pagewise = st.session_state['pagewise']
     locations = st.session_state['locations']
     
-    ent_type = st.sidebar.selectbox('Выберите тип сущности:', entities.keys(), index=st.session_state['mention'][0], \
+    ent_type = st.sidebar.selectbox('Выберите тип сущности:', entities.keys(), index=min(len(entities)-1,st.session_state['mention'][0]), \
                                     key='boxType', on_change=typeOnChange)
-    ent_name = st.sidebar.selectbox('Выберите сущность:', entities[ent_type].keys(), index=st.session_state['mention'][1], \
+    ent_name = st.sidebar.selectbox('Выберите сущность:', entities[ent_type].keys(), \
+                                    index=min(len(entities[ent_type])-1, st.session_state['mention'][1]), \
                                     key='boxName', on_change=nameOnChange)
     st.sidebar.text_area(label='Описание', value=entities[ent_type][ent_name]['Описание'], height=100, disabled=True, label_visibility="collapsed")
     mentions = entities[ent_type][ent_name]['Упоминания']
@@ -239,9 +251,12 @@ def main():
                       [format_linenum(m['Номер строки'])+(m['Роль'],) for m in mentions]))
     #values = [(m['Дата'] if 'Дата' in m else 'Неизвестно') + ' – ' + m['Роль'] for m in mentions]
     st.session_state['values'] = values
-    ent_case = st.sidebar.selectbox('Выберите упоминание:', values, index=st.session_state['mention'][2], \
+    ent_case = st.sidebar.selectbox('Выберите упоминание:', values, index=min(len(values)-1, st.session_state['mention'][2]), \
                                     key='boxCase', on_change=caseOnChange)
-    case_idx = values.index(ent_case)
+    try:
+        case_idx = values.index(ent_case)
+    except:
+        case_idx = 0
     
     if st.session_state['force']:
         page_idx,line_idx = st.session_state['page_idx'],-1
