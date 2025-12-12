@@ -33,26 +33,35 @@ def format_linenum(line_idx):
 def update_entities(data):
     loc_seq = st.session_state['loc_seq']
     entities = st.session_state['entities']
-    for d in data:
-        try:
-            if d['Тип'] not in entities:
-                entities[d['Тип']] = {}
-            for a in d['Упоминания']:
-                a['page_idx'],a['line_idx'] = format_linenum(a['Номер строки'])
-            if d['Имя'] not in entities[d['Тип']]:
-                entities[d['Тип']][d['Имя']] = {'Описание': d['Описание'], 'Упоминания': d['Упоминания']}
-            else:
-                entities[d['Тип']][d['Имя']]['Описание'] += ' ' + d['Описание']
-                entities[d['Тип']][d['Имя']]['Упоминания'] += d['Упоминания']
-        except:
-            pass
-        if d['Тип'] == 'Место':
-            loc_seq += [{'Имя': d['Имя'], 'Номер строки': m['Номер строки']} for m in d['Упоминания']]
+    for part in data:
+        for d in part:
+            try:
+                if d['Тип'] not in entities:
+                    entities[d['Тип']] = {}
+                for a in d['Упоминания']:
+                    a['Номер строки'] = int(a['Номер строки'])
+                    a['page_idx'],a['line_idx'] = format_linenum(a['Номер строки'])
+                if d['Имя'] not in entities[d['Тип']]:
+                    entities[d['Тип']][d['Имя']] = {'Описание': d['Описание'], 'Упоминания': d['Упоминания']}
+                else:
+                    entities[d['Тип']][d['Имя']]['Описание'] += '\n\n' + d['Описание']
+                    entities[d['Тип']][d['Имя']]['Упоминания'] += d['Упоминания']
+            except:
+                pass
+            if d['Тип'] == 'Место':
+                loc_seq += [{'Имя': d['Имя'], 'Номер строки': m['Номер строки']} for m in d['Упоминания']]
     loc_seq.sort(key = lambda x: x['Номер строки']) 
+    
+    for ent_type in entities:
+        for ent_name in entities[ent_type]:
+            entities[ent_type][ent_name]['Упоминания'].sort(key = lambda x: x['Номер строки'])
     
     types = list(entities.keys())
     types.sort(key = lambda x: 0 if x == 'Персона' else 1 if x == 'Место' else 2)
     entities = {k: entities[k] for k in types}
+    
+    if not entities:
+        entities = {'Тип': {'Имя': {'Описание': 'Описание', 'Упоминания': [{'Роль':'Роль','Номер строки':1,'page_idx':1,'line_idx':1}]}}}
     
     st.session_state['entities'] = entities
     st.session_state['loc_seq'] = loc_seq
@@ -105,7 +114,7 @@ def update_distances():
     else:
         line_dist = st.session_state['sliderDist']
     
-    p = (2*line_dist+1) / num_lines
+    p = (2*line_dist+1) / max(1,num_lines)
     distances = np.zeros((len(st.session_state['line_idxs']), len(st.session_state['line_idxs'])), dtype=int)
     probs = np.zeros((len(st.session_state['line_idxs']), len(st.session_state['line_idxs'])))
     matches = {k: {} for k in st.session_state['line_idxs'].keys()}
@@ -163,18 +172,12 @@ def make_pagewise():
     update_distances()
 
 def main():
-    
-    if 'mention' not in st.session_state:
-        st.session_state['mention'] = [0,0,0]
-    if 'page_idx' not in st.session_state:
-        st.session_state['page_idx'] = 0
-    if 'force' not in st.session_state:
-        st.session_state['force'] = False
+        
     if 'geolocator' not in st.session_state:
         st.session_state['geolocator'] = Nominatim(user_agent=f"{dataset}-diary")
     if 'loc_seq' not in st.session_state:
         st.session_state['loc_seq'] = []
-    
+        
     if 'filenames' not in st.session_state:
         filenames = os.listdir('labels')
         filenames = [fn[:-len('.txt')] for fn in filenames if fn.endswith('.txt')]        
@@ -204,16 +207,24 @@ def main():
         files = os.listdir('jsons')
         files = sorted([fn for fn in files if fn.endswith('.json')])
         st.session_state['entities'] = {}
+        data = []
         for fn in files:
             with open(f'jsons/{fn}', 'rb') as json_data:
-                data = json.load(json_data)
-            update_entities(data)
+                data.append(json.load(json_data))
+        update_entities(data)
         make_pagewise()
+    
+    if 'mention' not in st.session_state:
+        st.session_state['mention'] = next(t for t in next(s for s in st.session_state['pagewise'] if any(s)) if any(t))[0][1]
+    if 'page_idx' not in st.session_state:
+        st.session_state['page_idx'] = 0
+    if 'force' not in st.session_state:
+        st.session_state['force'] = False
     
     if 'locations' not in st.session_state:
         locs = pd.read_csv('locations.csv', encoding='utf-8', sep='\t')
         st.session_state['locations'] = {loc['Имя']: (loc['Широта'],loc['Долгота']) for i,loc in locs.iterrows()}
-    
+
     entities = st.session_state['entities']
     pagewise = st.session_state['pagewise']
     locations = st.session_state['locations']
@@ -247,17 +258,19 @@ def main():
         if json_names:
             if not append:
                 st.session_state['entities'] = {}
+            data = []
             for fn in json_fn:
-                data = json.load(fn)
-                update_entities(data)
+                data.append(json.load(fn))
+            update_entities(data)
         else:
             files = os.listdir('jsons')
             files = sorted([fn for fn in files if fn.endswith('.json')])
             st.session_state['entities'] = {}
+            data = []
             for fn in files:
                 with open(f'jsons/{fn}', 'rb') as json_data:
-                    data = json.load(json_data)
-                update_entities(data)
+                    data.append(json.load(json_data))
+            update_entities(data)
         make_pagewise()
         
         st.session_state['json_names'] = json_names
