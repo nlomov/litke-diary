@@ -46,10 +46,10 @@ def update_entities(data):
                 else:
                     entities[d['Тип']][d['Имя']]['Описание'] += '\n\n' + d['Описание']
                     entities[d['Тип']][d['Имя']]['Упоминания'] += d['Упоминания']
+                if d['Тип'] == 'Место':
+                    loc_seq += [{'Имя': d['Имя'], 'Номер строки': m['Номер строки']} for m in d['Упоминания']]
             except:
                 pass
-            if d['Тип'] == 'Место':
-                loc_seq += [{'Имя': d['Имя'], 'Номер строки': m['Номер строки']} for m in d['Упоминания']]
     loc_seq.sort(key = lambda x: x['Номер строки']) 
     
     for ent_type in entities:
